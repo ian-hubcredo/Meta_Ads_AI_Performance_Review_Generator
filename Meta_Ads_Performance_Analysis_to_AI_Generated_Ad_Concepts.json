@@ -1,0 +1,751 @@
+{
+  "name": "Meta Ads Performance Analysis to AI-Generated Ad Concepts",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "21afae2c-aadb-4ec3-8dd3-82f3691fe7ad",
+      "name": "Daily Weekday Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        96
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "metaAdAccountId",
+              "value": "<__PLACEHOLDER_VALUE__Meta Ad Account ID__>",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "metaAccessToken",
+              "value": "<__PLACEHOLDER_VALUE__Meta Access Token__>",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "claudeApiKey",
+              "value": "<__PLACEHOLDER_VALUE__Claude API Key__>",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "googleDocTemplateId",
+              "value": "<__PLACEHOLDER_VALUE__Google Doc Template ID__>",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "notionDatabaseId",
+              "value": "<__PLACEHOLDER_VALUE__Notion Database ID__>",
+              "type": "string"
+            },
+            {
+              "id": "id-6",
+              "name": "performanceThresholdHigh",
+              "value": 70,
+              "type": "number"
+            },
+            {
+              "id": "id-7",
+              "name": "performanceThresholdMedium",
+              "value": 40,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "4c1be38b-3b8f-4cef-ada9-3339ac67dd7b",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        112,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Workflow Configuration').first().json.metaAdAccountId }}/ads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,creative"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Workflow Configuration').first().json.metaAccessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0946511d-740a-4cda-92b5-685d387d25a9",
+      "name": "Get Meta Ads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        336,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.id }}/insights",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "level",
+              "value": "ad"
+            },
+            {
+              "name": "fields",
+              "value": "impressions,clicks,spend,ctr,actions"
+            },
+            {
+              "name": "time_range",
+              "value": "={\"since\":\"{{ $now.minus(7, 'days').toFormat('yyyy-MM-dd') }}\",\"until\":\"{{ $now.toFormat('yyyy-MM-dd') }}\"}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Workflow Configuration').first().json.metaAccessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fff64b44-b518-4e95-863e-da67fccef644",
+      "name": "Get Ad Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge ad data with insights and calculate performance scores\nconst items = $input.all();\n\nconst scoredAds = items.map(item => {\n  const ad = item.json;\n  \n  // Calculate performance score based on key metrics\n  const ctr = parseFloat(ad.ctr) || 0;\n  const cpc = parseFloat(ad.cpc) || 0;\n  const conversions = parseFloat(ad.conversions) || 0;\n  const spend = parseFloat(ad.spend) || 0;\n  \n  // Scoring logic (customize based on your KPIs)\n  let score = 0;\n  \n  // CTR scoring (higher is better)\n  if (ctr > 2) score += 30;\n  else if (ctr > 1) score += 20;\n  else if (ctr > 0.5) score += 10;\n  \n  // CPC scoring (lower is better)\n  if (cpc < 0.5) score += 30;\n  else if (cpc < 1) score += 20;\n  else if (cpc < 2) score += 10;\n  \n  // Conversion scoring\n  if (conversions > 10) score += 40;\n  else if (conversions > 5) score += 25;\n  else if (conversions > 1) score += 15;\n  \n  // Determine performance tier\n  let performance_tier;\n  if (score >= 70) performance_tier = 'High';\n  else if (score >= 40) performance_tier = 'Medium';\n  else performance_tier = 'Low';\n  \n  return {\n    json: {\n      ...ad,\n      performance_score: score,\n      performance_tier: performance_tier\n    }\n  };\n});\n\nreturn scoredAds;"
+      },
+      "id": "73328182-4225-4a0b-8173-e7aba453f920",
+      "name": "Merge and Score Ads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.performance_tier }}",
+                    "rightValue": "High",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "High"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.performance_tier }}",
+                    "rightValue": "Medium",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Medium"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.performance_tier }}",
+                    "rightValue": "Low",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Low"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "94285544-6049-4f3c-a33f-607de31fee5e",
+      "name": "Route by Performance Tier",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1008,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "high_performers",
+        "options": {}
+      },
+      "id": "5a5a75fc-9dd8-4c95-b35c-2a07e8f37909",
+      "name": "Aggregate High Performers",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "medium_performers",
+        "options": {}
+      },
+      "id": "d063a5f5-c805-46c1-be4b-e2027b933e8c",
+      "name": "Aggregate Medium Performers",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "low_performers",
+        "options": {}
+      },
+      "id": "32c5b5e9-6f19-4b9d-8321-b929f7c0b902",
+      "name": "Aggregate Low Performers",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract winning patterns from high-performing ads\nconst highPerformers = $input.all();\n\n// Analyze common characteristics\nconst patterns = {\n  topCreatives: [],\n  commonThemes: [],\n  avgMetrics: {\n    ctr: 0,\n    cpc: 0,\n    conversions: 0,\n    roas: 0\n  },\n  insights: []\n};\n\n// Calculate average metrics\nlet totalCtr = 0, totalCpc = 0, totalConversions = 0, totalRoas = 0;\n\nhighPerformers.forEach(ad => {\n  totalCtr += ad.json.ctr || 0;\n  totalCpc += ad.json.cpc || 0;\n  totalConversions += ad.json.conversions || 0;\n  totalRoas += ad.json.roas || 0;\n  \n  // Collect top creatives\n  if (ad.json.creative) {\n    patterns.topCreatives.push({\n      id: ad.json.id,\n      name: ad.json.name,\n      creative: ad.json.creative,\n      score: ad.json.performanceScore\n    });\n  }\n});\n\nconst count = highPerformers.length || 1;\npatterns.avgMetrics.ctr = totalCtr / count;\npatterns.avgMetrics.cpc = totalCpc / count;\npatterns.avgMetrics.conversions = totalConversions / count;\npatterns.avgMetrics.roas = totalRoas / count;\n\n// Sort top creatives by score\npatterns.topCreatives.sort((a, b) => b.score - a.score);\n\n// Generate insights\npatterns.insights.push(`Analyzed ${count} high-performing ads`);\npatterns.insights.push(`Average CTR: ${patterns.avgMetrics.ctr.toFixed(2)}%`);\npatterns.insights.push(`Average ROAS: ${patterns.avgMetrics.roas.toFixed(2)}x`);\n\nreturn [{ json: patterns }];"
+      },
+      "id": "5a26cfdb-06e5-4794-8a8c-b3b05e97688b",
+      "name": "Extract Winning Patterns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build AI prompt for generating ad concepts\nconst patterns = $input.first().json;\n\nconst prompt = `You are an expert Meta Ads copywriter. Based on the following high-performing ad data, generate 5 new ad concepts.\n\nPerformance Summary:\n- Average CTR: ${patterns.avgMetrics.ctr.toFixed(2)}%\n- Average CPC: $${patterns.avgMetrics.cpc.toFixed(2)}\n- Average ROAS: ${patterns.avgMetrics.roas.toFixed(2)}x\n- Average Conversions: ${patterns.avgMetrics.conversions.toFixed(0)}\n\nTop Performing Ads:\n${patterns.topCreatives.slice(0, 5).map((ad, i) => `${i+1}. ${ad.name} (Score: ${ad.score})`).join('\\n')}\n\nKey Insights:\n${patterns.insights.join('\\n')}\n\nGenerate 5 new ad concepts in JSON format with the following structure:\n[\n  {\n    \"headline\": \"Compelling headline\",\n    \"primary_text\": \"Engaging primary text\",\n    \"cta\": \"Call to action\",\n    \"targeting_suggestion\": \"Recommended audience\"\n  }\n]\n\nReturn ONLY the JSON array, no additional text.`;\n\nreturn [{ json: { prompt } }];"
+      },
+      "id": "e813fb87-9145-4095-9fd0-511838da3e81",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Workflow Configuration').first().json.claudeApiKey }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-5-sonnet-20241022\",\n  \"max_tokens\": 4096,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "be9122f9-c8b7-49e2-9f53-2fd858d19411",
+      "name": "Generate Ad Concepts with Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2096,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $('Workflow Configuration').first().json.googleDocTemplateId }}/copy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"Meta Ads Analysis - {{ $now.toFormat('yyyy-MM-dd') }}\"\n}",
+        "options": {}
+      },
+      "id": "beb1a3bb-0faf-49b1-ad59-6a23e06d0e8e",
+      "name": "Copy Google Doc Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.id }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"requests\": [\n    {\n      \"insertText\": {\n        \"location\": { \"index\": 1 },\n        \"text\": \"Meta Ads Performance Analysis - {{ $now.toFormat('yyyy-MM-dd') }}\\n\\n\"\n      }\n    },\n    {\n      \"insertText\": {\n        \"location\": { \"index\": 100 },\n        \"text\": \"Performance Summary:\\nAverage ROAS: {{ $('Extract Winning Patterns').first().json.patterns.avg_metrics.roas }}\\nAverage CTR: {{ $('Extract Winning Patterns').first().json.patterns.avg_metrics.ctr }}%\\n\\nAI-Generated Ad Concepts:\\n{{ JSON.parse($('Generate Ad Concepts with Claude').first().json.content[0].text).map((c, i) => `\\n${i+1}. ${c.headline}\\n   ${c.primary_text}\\n   CTA: ${c.cta}\\n`).join('\\n') }}\"\n      }\n    }\n  ]\n}",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "id": "ce0afac2-2cc3-4f24-94f5-dba28f5b4050",
+      "name": "Insert Content to Google Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2544,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Workflow Configuration').first().json.notionDatabaseId }}"
+        },
+        "title": "=Meta Ads Analysis - {{ $now.toFormat('yyyy-MM-dd') }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|select",
+              "type": "select",
+              "selectValue": "Ready for Review"
+            },
+            {
+              "key": "Date|date",
+              "type": "date",
+              "includeTime": false,
+              "date": "={{ $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "key": "Avg ROAS|number",
+              "type": "number",
+              "numberValue": "={{ parseFloat($('Extract Winning Patterns').first().json.patterns.avg_metrics.roas) }}"
+            },
+            {
+              "key": "Avg CTR|number",
+              "type": "number",
+              "numberValue": "={{ parseFloat($('Extract Winning Patterns').first().json.patterns.avg_metrics.ctr) }}"
+            },
+            {
+              "key": "Google Doc|url",
+              "type": "url",
+              "urlValue": "=https://docs.google.com/document/d/{{ $('Copy Google Doc Template').first().json.id }}"
+            },
+            {
+              "key": "High Performers|number",
+              "type": "number",
+              "numberValue": "={{ $('Extract Winning Patterns').first().json.high_performers.length }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c421018-32c4-4ea8-bde4-8402b018d872",
+      "name": "Create Notion Page",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        2768,
+        -128
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "61f51b30-7077-4018-8387-cd948361b68c",
+      "name": "Error Workflow Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Slack/Teams webhook URL for error notifications__>",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"⚠️ Meta Ads Workflow Error\",\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Workflow Error Details*\\n\\n*Workflow:* {{ $json.workflow.name }}\\n*Execution ID:* {{ $json.execution.id }}\\n*Error:* {{ $json.execution.lastNodeExecuted }}\\n*Message:* {{ $json.execution.error.message }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "4217df68-5850-4e6a-b3cd-8c5802c5acb5",
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1632,
+        96
+      ],
+      "id": "77c51197-5711-498f-96ee-73cfa6f51809",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1632,
+        336
+      ],
+      "id": "128cf76d-38d0-4ffe-9d0b-9c7d694870d4",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Weekday Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Get Meta Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Meta Ads": {
+      "main": [
+        [
+          {
+            "node": "Get Ad Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ad Insights": {
+      "main": [
+        [
+          {
+            "node": "Merge and Score Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge and Score Ads": {
+      "main": [
+        [
+          {
+            "node": "Route by Performance Tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Performance Tier": {
+      "main": [
+        [
+          {
+            "node": "Aggregate High Performers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate Medium Performers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate Low Performers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate High Performers": {
+      "main": [
+        [
+          {
+            "node": "Extract Winning Patterns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Winning Patterns": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Ad Concepts with Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Ad Concepts with Claude": {
+      "main": [
+        [
+          {
+            "node": "Copy Google Doc Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy Google Doc Template": {
+      "main": [
+        [
+          {
+            "node": "Insert Content to Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Content to Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Medium Performers": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Low Performers": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
